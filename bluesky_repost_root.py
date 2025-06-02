@@ -25,10 +25,10 @@ def get_latest_mention(jwt):
     res = requests.get(f'{BASE_URL}/app.bsky.notification.listNotifications', headers=headers)
     res.raise_for_status()
     notifications = res.json().get('notifications', [])
-    
+
     for notif in notifications:
         reason = notif.get('reason')
-        uri = notif.get('uri')
+        uri = notif.get('uri')  # 안전하게 접근
         print(f"🔔 Notification: {reason} - {uri}")
         if reason == 'mention' and uri:
             return uri
