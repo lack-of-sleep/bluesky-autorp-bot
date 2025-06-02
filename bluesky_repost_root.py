@@ -4,8 +4,8 @@ import os
 import time
 
 BASE_URL = "https://bsky.social/xrpc"
-USERNAME = os.getenv("BSKY_USERNAME") or "your-handle.bsky.social"
-PASSWORD = os.getenv("BSKY_PASSWORD") or "your-app-password"
+USERNAME = os.getenv("BSKY_USERNAME")
+PASSWORD = os.getenv("BSKY_PASSWORD")
 
 def login():
     print("🔐 Logging in...")
