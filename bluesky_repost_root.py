@@ -7,6 +7,8 @@ BASE_URL = "https://bsky.social/xrpc"
 BSKY_HANDLE = os.getenv("BSKY_HANDLE")
 BSKY_APP_PASSWORD = os.getenv("BSKY_APP_PASSWORD")
 
+CACHE_FILE = "processed_mentions.json"
+
 def login():
     print("🔐 Logging in...")
     res = requests.post(f"{BASE_URL}/com.atproto.server.createSession", json={
@@ -16,23 +18,34 @@ def login():
     res.raise_for_status()
     return res.json()['accessJwt']
 
-def get_latest_mention(jwt):
-    print("🔎 Getting latest mention...")
+def load_cache():
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, "r") as f:
+            return set(json.load(f))
+    return set()
+
+def save_cache(cache):
+    with open(CACHE_FILE, "w") as f:
+        json.dump(list(cache), f)
+
+def get_all_mentions(jwt, cache):
+    print("🔎 Getting all mentions...")
     headers = {'Authorization': f'Bearer {jwt}'}
     res = requests.get(f'{BASE_URL}/app.bsky.notification.listNotifications', headers=headers)
     res.raise_for_status()
     notifications = res.json().get('notifications', [])
 
+    uris = []
     for notif in notifications:
         reason = notif.get('reason')
         uri = notif.get('uri')
         print(f"📨 Notification: reason={reason}, uri={uri}")
-        if reason == 'mention' and uri:
-            return uri
-    return None
+        if reason == 'mention' and uri and uri not in cache:
+            uris.append(uri)
+    return uris
 
 def find_root_post(thread_node):
-    """스레드 구조에서 루트 포스트까지 거슬러 올라가는 함수"""
+    # 스레드 구조에서 루트 포스트까지 거슬러 올라가는 함수
     while thread_node.get("parent"):
         thread_node = thread_node["parent"]
     return thread_node["post"]
@@ -59,41 +72,48 @@ def get_post_cid(uri, jwt):
     res = requests.get(f"{BASE_URL}/com.atproto.repo.getRecord", headers=headers, params={
         "repo": uri.split('/')[2],
         "collection": "app.bsky.feed.post",
-        "rkey": uri.split('/')[-1],
+        "rkey": uri.split('/')[-1]
     })
     res.raise_for_status()
-    return res.json()['cid']
+    return res.json()["cid"]
 
-def repost(uri, jwt):
-    print(f"🔁 Reposting: {uri}")
-    headers = {'Authorization': f'Bearer {jwt}'}
-    data = {
+def repost(uri, cid, jwt):
+    headers = {
+        'Authorization': f'Bearer {jwt}',
+        'Content-Type': 'application/json'
+    }
+    payload = {
+        "$type": "app.bsky.feed.repost",
+        "subject": {
+            "uri": uri,
+            "cid": cid
+        },
+        "createdAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    }
+    res = requests.post(f"{BASE_URL}/com.atproto.repo.createRecord", headers=headers, json={
         "repo": BSKY_HANDLE,
         "collection": "app.bsky.feed.repost",
-        "record": {
-            "$type": "app.bsky.feed.repost",
-            "subject": {
-                "uri": uri,
-                "cid": get_post_cid(uri, jwt)
-            },
-            "createdAt": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
-        }
-    }
-    res = requests.post(f"{BASE_URL}/com.atproto.repo.createRecord", headers=headers, json=data)
+        "record": payload
+    })
     res.raise_for_status()
-    print("✅ Repost complete")
+    print(f"🔁 Reposted: {uri}")
 
-def run_bot():
+def main():
     jwt = login()
-    mention_uri = get_latest_mention(jwt)
-    if mention_uri:
-        root_uri = get_root_post_uri(mention_uri, jwt)
+    cache = load_cache()
+    mention_uris = get_all_mentions(jwt, cache)
+    
+    for uri in mention_uris:
+        root_uri = get_root_post_uri(uri, jwt)
         if root_uri:
-            repost(root_uri, jwt)
-        else:
-            print("⚠️ 루트 URI 없음, 리포스트 생략")
-    else:
-        print("⚠️ mention 없음")
+            try:
+                cid = get_post_cid(root_uri, jwt)
+                repost(root_uri, cid, jwt)
+                cache.add(uri)
+            except Exception as e:
+                print(f"⚠️ 처리 실패: {e}")
+    
+    save_cache(cache)
 
 if __name__ == "__main__":
-    run_bot()
+    main()
