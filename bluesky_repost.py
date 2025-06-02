@@ -2,6 +2,7 @@ import requests
 import json
 import os
 import time
+from datetime import datetime, timedelta
 
 BASE_URL = "https://bsky.social/xrpc"
 BSKY_HANDLE = os.getenv("BSKY_HANDLE")
@@ -28,24 +29,31 @@ def save_cache(cache):
     with open(CACHE_FILE, "w") as f:
         json.dump(list(cache), f)
 
-def get_all_mentions(jwt, cache):
-    print("🔎 Getting all mentions...")
+def get_all_mentions(jwt):
+    print("🔎 Getting recent mentions...")
     headers = {'Authorization': f'Bearer {jwt}'}
     res = requests.get(f'{BASE_URL}/app.bsky.notification.listNotifications', headers=headers)
     res.raise_for_status()
     notifications = res.json().get('notifications', [])
 
-    uris = []
+    cutoff = datetime.utcnow() - timedelta(hours=3)
+    recent_mentions = []
+
     for notif in notifications:
         reason = notif.get('reason')
         uri = notif.get('uri')
-        print(f"📨 Notification: reason={reason}, uri={uri}")
-        if reason == 'mention' and uri and uri not in cache:
-            uris.append(uri)
-    return uris
+        indexed_at = notif.get('indexedAt')
+        try:
+            notif_time = datetime.strptime(indexed_at, "%Y-%m-%dT%H:%M:%S.%fZ")
+        except:
+            notif_time = datetime.strptime(indexed_at, "%Y-%m-%dT%H:%M:%SZ")
+
+        if reason == 'mention' and uri and notif_time > cutoff:
+            recent_mentions.append(uri)
+
+    return recent_mentions
 
 def find_root_post(thread_node):
-    # 스레드 구조에서 루트 포스트까지 거슬러 올라가는 함수
     while thread_node.get("parent"):
         thread_node = thread_node["parent"]
     return thread_node["post"]
@@ -101,18 +109,18 @@ def repost(uri, cid, jwt):
 def main():
     jwt = login()
     cache = load_cache()
-    mention_uris = get_all_mentions(jwt, cache)
-    
-    for uri in mention_uris:
-        root_uri = get_root_post_uri(uri, jwt)
-        if root_uri:
+    mention_uris = get_all_mentions(jwt)
+
+    for mention_uri in mention_uris:
+        root_uri = get_root_post_uri(mention_uri, jwt)
+        if root_uri and root_uri not in cache:
             try:
                 cid = get_post_cid(root_uri, jwt)
                 repost(root_uri, cid, jwt)
-                cache.add(uri)
+                cache.add(root_uri)
             except Exception as e:
                 print(f"⚠️ 처리 실패: {e}")
-    
+
     save_cache(cache)
 
 if __name__ == "__main__":
