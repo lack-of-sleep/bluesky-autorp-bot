@@ -4,14 +4,14 @@ import os
 import time
 
 BASE_URL = "https://bsky.social/xrpc"
-USERNAME = os.getenv("BSKY_HANDLE")
-PASSWORD = os.getenv("BSKY_APP_PASSWORD")
+BSKY_HANDLE = os.getenv("BSKY_HANDLE")
+BSKY_APP_PASSWORD = os.getenv("BSKY_APP_PASSWORD")
 
 def login():
     print("🔐 Logging in...")
     res = requests.post(f"{BASE_URL}/com.atproto.server.createSession", json={
-        "identifier": USERNAME,
-        "password": PASSWORD
+        "identifier": BSKY_HANDLE,
+        "password": BSKY_APP_PASSWORD
     })
     res.raise_for_status()
     return res.json()['accessJwt']
@@ -52,7 +52,7 @@ def repost(uri, jwt):
     print(f"🔁 Reposting: {uri}")
     headers = {'Authorization': f'Bearer {jwt}'}
     data = {
-        "repo": USERNAME,
+        "repo": BSKY_HANDLE,
         "collection": "app.bsky.feed.repost",
         "record": {
             "$type": "app.bsky.feed.repost",
