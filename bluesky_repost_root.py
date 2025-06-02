@@ -31,7 +31,14 @@ def get_latest_mention(jwt):
             return uri
     return None
 
+def find_root_post(thread_node):
+    """스레드 구조에서 루트 포스트까지 거슬러 올라가는 함수"""
+    while thread_node.get("parent"):
+        thread_node = thread_node["parent"]
+    return thread_node["post"]
+
 def get_root_post_uri(mention_uri, jwt):
+    print(f"🧵 Getting thread for: {mention_uri}")
     headers = {'Authorization': f'Bearer {jwt}'}
     params = {'uri': mention_uri}
     res = requests.get(f"{BASE_URL}/app.bsky.feed.getPostThread", headers=headers, params=params)
@@ -39,14 +46,23 @@ def get_root_post_uri(mention_uri, jwt):
     thread_data = res.json()
 
     try:
-        # 루트 게시글이 'parent' 없이 바로 존재할 경우
-        post = thread_data['thread']['post']
-        while 'parent' in post:
-            post = post['parent']
-        return post['uri']
+        root_post = find_root_post(thread_data["thread"])
+        root_uri = root_post["uri"]
+        print(f"🌱 Found root post URI: {root_uri}")
+        return root_uri
     except Exception as e:
         print(f"❌ 루트 게시글 URI 추출 실패: {e}")
         return None
+
+def get_post_cid(uri, jwt):
+    headers = {'Authorization': f'Bearer {jwt}'}
+    res = requests.get(f"{BASE_URL}/com.atproto.repo.getRecord", headers=headers, params={
+        "repo": uri.split('/')[2],
+        "collection": "app.bsky.feed.post",
+        "rkey": uri.split('/')[-1],
+    })
+    res.raise_for_status()
+    return res.json()['cid']
 
 def repost(uri, jwt):
     print(f"🔁 Reposting: {uri}")
@@ -66,16 +82,6 @@ def repost(uri, jwt):
     res = requests.post(f"{BASE_URL}/com.atproto.repo.createRecord", headers=headers, json=data)
     res.raise_for_status()
     print("✅ Repost complete")
-
-def get_post_cid(uri, jwt):
-    headers = {'Authorization': f'Bearer {jwt}'}
-    res = requests.get(f"{BASE_URL}/com.atproto.repo.getRecord", headers=headers, params={
-        "repo": uri.split('/')[2],
-        "collection": "app.bsky.feed.post",
-        "rkey": uri.split('/')[-1],
-    })
-    res.raise_for_status()
-    return res.json()['cid']
 
 def run_bot():
     jwt = login()
