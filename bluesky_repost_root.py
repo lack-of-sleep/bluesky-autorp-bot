@@ -27,9 +27,11 @@ def get_latest_mention(jwt):
     notifications = res.json().get('notifications', [])
     
     for notif in notifications:
-        print(f"🔔 Notification: {notif.get('reason')} - {notif.get('uri')}")
-        if notif['reason'] == 'mention':
-            return notif['uri']
+        reason = notif.get('reason')
+        uri = notif.get('uri')
+        print(f"🔔 Notification: {reason} - {uri}")
+        if reason == 'mention' and uri:
+            return uri
     return None
 
 # 루트 포스트 찾기
