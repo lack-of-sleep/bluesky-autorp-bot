@@ -4,7 +4,7 @@ import os
 import time
 
 BASE_URL = "https://bsky.social/xrpc"
-USERNAME = os.getenv("BSKY_USERNAME")
+USERNAME = os.getenv("BSKY_HANDLE")
 PASSWORD = os.getenv("BSKY_PASSWORD")
 
 def login():
