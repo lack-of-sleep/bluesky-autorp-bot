@@ -1,4 +1,4 @@
-name: Bluesky Repost Root Bot
+name: Bluesky Repost Bot
 
 on:
   schedule:
@@ -26,4 +26,4 @@ jobs:
         run: pip install requests
 
       - name: Run bot
-        run: python bluesky_repost_root.py
+        run: python bluesky_repost.py
