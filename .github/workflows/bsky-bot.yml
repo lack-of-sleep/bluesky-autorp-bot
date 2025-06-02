@@ -1,0 +1,29 @@
+name: Bluesky Repost Root Bot
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # 매 15분마다 실행 (UTC)
+  workflow_dispatch:        # 수동 실행도 허용
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    env:
+      BSKY_HANDLE: ${{ secrets.BSKY_HANDLE }}
+      BSKY_APP_PASSWORD: ${{ secrets.BSKY_APP_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run bot
+        run: python bluesky_repost_root.py
